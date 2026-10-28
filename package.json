@@ -6,8 +6,13 @@
   "scripts": {
     "start": "node server.js",
     "build": "node scripts/build-language-packs.cjs",
+    "build:online": "node scripts/prepare-online-build.cjs",
+    "build:packs:online": "node scripts/generate-language-packs-online.cjs",
+    "translations:templates": "node scripts/export-language-templates.cjs",
     "build:mobile:web": "node scripts/prepare-mobile.cjs",
-    "build:mobile:android": "npm run build && npm run build:mobile:web && cap sync android && cd android && gradlew.bat assembleDebug",
+    "build:mobile:android": "npm run build && npm run build:mobile:web && cap sync android && cd android && gradlew.bat assembleDebug && cd .. && node scripts/publish-android-apk.cjs",
+    "build:mobile:android:online": "npm run build:online && node scripts/prepare-mobile.cjs --online-translation && cap sync android && cd android && gradlew.bat assembleDebug && cd .. && node scripts/publish-android-apk.cjs",
+    "build:mobile:android:preinstalled": "npm run build:packs:online && node scripts/prepare-mobile.cjs && cap sync android && cd android && gradlew.bat assembleDebug && cd .. && node scripts/publish-android-apk.cjs",
     "test": "node --test"
   },
   "dependencies": {

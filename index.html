@@ -64,6 +64,7 @@
     <nav class="navigation" id="primary-navigation" aria-label="Main navigation">
       <a href="#home"><span class="nav-icon" aria-hidden="true">⌂</span> Home</a>
       <a href="#topics"><span class="nav-icon" aria-hidden="true">▦</span> Topics</a>
+      <a href="#download"><span class="nav-icon" aria-hidden="true">↓</span> Get the app</a>
       <a class="urgent-nav" href="#support"><span class="nav-icon" aria-hidden="true">＋</span> Need help?</a>
       <a class="nav-cta" href="#topics">Take a moment <span aria-hidden="true">↗</span></a>
     </nav>
@@ -125,6 +126,16 @@
             <span class="topic-card-copy"><strong>Mood check-in</strong><small>Notice how you feel</small></span>
             <span class="topic-card-arrow" aria-hidden="true">↗</span>
           </a>
+          <a class="topic-card topic-tools" href="#focus">
+            <span class="topic-card-icon" aria-hidden="true">◷</span>
+            <span class="topic-card-copy"><strong>Focus timer</strong><small>Study with gentle break reminders</small></span>
+            <span class="topic-card-arrow" aria-hidden="true">↗</span>
+          </a>
+          <a class="topic-card topic-needs" href="#daily-care">
+            <span class="topic-card-icon" aria-hidden="true">✦</span>
+            <span class="topic-card-copy"><strong>Daily care</strong><small>Choose a few kind steps for today</small></span>
+            <span class="topic-card-arrow" aria-hidden="true">↗</span>
+          </a>
           <a class="topic-card topic-needs" href="#needs">
             <span class="topic-card-icon" aria-hidden="true">⌖</span>
             <span class="topic-card-copy"><strong>What do I need?</strong><small>Find a gentle next step</small></span>
@@ -155,8 +166,45 @@
             <span class="topic-card-copy"><strong>About this project</strong><small>Why a student made this</small></span>
             <span class="topic-card-arrow" aria-hidden="true">↗</span>
           </a>
+          <a class="topic-card topic-download" href="#download">
+            <span class="topic-card-icon" aria-hidden="true">↓</span>
+            <span class="topic-card-copy"><strong>Android app</strong><small>Get Mind Care for your phone</small></span>
+            <span class="topic-card-arrow" aria-hidden="true">↗</span>
+          </a>
         </div>
         <div class="topic-footer-note"><span aria-hidden="true">✦</span> Use just one topic or explore them all at your own pace.</div>
+      </div>
+    </section>
+
+    <section class="app-screen download-screen section-pad" data-screen="download" id="download">
+      <div class="page-width download-layout">
+        <div class="download-copy">
+          <p class="eyebrow">Mind Care, in your pocket</p>
+          <h1>A little care,<br><em>wherever you are.</em></h1>
+          <p>Take the student-made wellbeing tools with you. The Android app is designed to keep your journal and check-ins on your device.</p>
+          <div class="download-card">
+            <span class="download-icon" aria-hidden="true">↓</span>
+            <div class="download-card-copy">
+              <strong>Mind Care for Android</strong>
+              <span>Android APK · debug build</span>
+            </div>
+            <a class="button button-dark" id="android-download-link" href="/downloads/mind-care.apk" download="mind-care.apk" hidden>Download APK <span aria-hidden="true">↓</span></a>
+            <p class="download-status" id="android-download-status" role="status" aria-live="polite">Checking whether an APK is available…</p>
+            <button class="download-retry" id="android-download-retry" type="button">Check again</button>
+          </div>
+          <p class="download-safety">Only install APK files you trust. Android may ask you to allow installation from your browser. The app’s AI chat needs an internet connection; saved wellbeing entries stay on this device.</p>
+        </div>
+        <div class="download-art" aria-hidden="true">
+          <div class="download-phone">
+            <span class="download-phone-speaker"></span>
+            <span class="download-phone-flower">✳</span>
+            <strong>mind care<span>.</span></strong>
+            <span class="download-phone-caption">A moment for you</span>
+            <span class="download-phone-button">Take a breath</span>
+          </div>
+          <span class="download-art-star download-art-star-one">✦</span>
+          <span class="download-art-star download-art-star-two">✿</span>
+        </div>
       </div>
     </section>
 
@@ -189,6 +237,52 @@
             <button class="chat-send" type="submit" aria-label="Send message">↑</button>
           </form>
           <p class="chat-status" id="chat-status" aria-live="polite">Please don’t share passwords, addresses, or other identifying details.</p>
+        </div>
+      </div>
+    </section>
+    </div>
+
+    <div class="app-screen" data-screen="focus">
+    <section class="focus-section section-pad" id="focus">
+      <div class="page-width focus-layout">
+        <div class="focus-intro">
+          <p class="eyebrow">A gentle study companion</p>
+          <h2>Make room<br>to <em>focus.</em></h2>
+          <p>Pick a short focus block or a small break. You can pause or stop whenever you need to.</p>
+          <p class="private-note">This timer runs on this device and does not send anything online.</p>
+        </div>
+        <div class="focus-card">
+          <p class="card-kicker">CHOOSE A SESSION</p>
+          <div class="focus-modes" role="group" aria-label="Choose timer session">
+            <button type="button" class="focus-mode" data-minutes="25" aria-pressed="true">Focus · 25 min</button>
+            <button type="button" class="focus-mode" data-minutes="5" aria-pressed="false">Short break · 5 min</button>
+          </div>
+          <p class="focus-clock" id="focus-clock" role="timer" aria-label="25 minutes remaining">25:00</p>
+          <div class="focus-actions">
+            <button type="button" class="button button-dark" id="focus-start">Start focus</button>
+            <button type="button" class="button button-outline" id="focus-reset">Reset</button>
+          </div>
+          <p class="focus-status" id="focus-status" role="status" aria-live="polite">Ready when you are. One small task is enough.</p>
+        </div>
+      </div>
+    </section>
+    </div>
+
+    <div class="app-screen" data-screen="daily-care">
+    <section class="daily-care-section section-pad" id="daily-care">
+      <div class="page-width daily-care-layout">
+        <div>
+          <p class="eyebrow">Small things count</p>
+          <h2>A little care<br>for <em>today.</em></h2>
+          <p>Choose any small steps that feel kind and realistic. This is not a streak or a score—skipping a day is okay.</p>
+          <p class="private-note">Your choices are saved only in this browser on this device and reset each day.</p>
+        </div>
+        <div class="daily-care-card">
+          <p class="card-kicker">MY GENTLE CHECKLIST</p>
+          <label class="care-step"><input type="checkbox" data-care-index="0"><span>Drink a glass of water</span></label>
+          <label class="care-step"><input type="checkbox" data-care-index="1"><span>Take a short stretch or outside pause</span></label>
+          <label class="care-step"><input type="checkbox" data-care-index="2"><span>Reach out to someone I trust</span></label>
+          <p id="daily-care-status" class="daily-care-status" role="status" aria-live="polite">0/3 small care steps marked today.</p>
         </div>
       </div>
     </section>
@@ -250,6 +344,10 @@
           <div class="mood-history">
             <div class="feature-heading"><h3>Your mood history</h3><button class="text-button" type="button" id="mood-history-clear">Clear history</button></div>
             <p class="private-note">Saved only in this browser on this device. A shared device may expose it to others.</p>
+            <div class="mood-insight" aria-labelledby="mood-insight-title">
+              <h4 id="mood-insight-title">Your last seven days</h4>
+              <p id="mood-insight" aria-live="polite">Check-ins you choose to save will appear here. This is for reflection, not diagnosis.</p>
+            </div>
             <ul id="mood-history-list" class="saved-list" aria-live="polite"></ul>
           </div>
         </div>
@@ -424,7 +522,7 @@
           <h2>Why we made <em>this.</em></h2>
           <p class="project-credits"><strong>Developers:</strong> <span>Naveen Kumar, Dilshaj Ashrafi, Gaurav Raj, Abhishek Kumar Singh</span><br><strong>Class / course:</strong> <span>B3/B210 · BTech CSE (AI)</span></p>
           <p>We made Mind Care as a student project because looking after your wellbeing can feel confusing, and starting a conversation isn’t always easy. We wanted to make one friendly page with a few simple ways to pause and find help. It’s for everyone, whatever life looks like for you.</p>
-          <p class="about-privacy"><strong>A quick privacy note:</strong> Mood history, plans, contacts, feedback, and journal notes are saved only in this browser on this device and may be visible to others who use it. Chat messages are sent to Google Gemini for a reply. The preinstalled language packs are bundled with the app, so selecting a language does not send your page content or personal information to a translation service. AI translations can be imperfect, so use official support information for urgent needs. See <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer">Google’s AI terms</a>. This is a student project, not professional or emergency care.</p>
+          <p class="about-privacy"><strong>A quick privacy note:</strong> Mood history, plans, daily care choices, contacts, feedback, and journal notes are saved only in this browser on this device and may be visible to others who use it. Chat messages are sent to Google Gemini for a reply. In the online language build, fixed interface text (not personal entries) is sent to the configured translation service when you choose a new language. Check translations against official sources before relying on support information. See <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer">Google’s AI terms</a>. This is a student project, not professional or emergency care.</p>
           <div class="accessibility-settings" aria-labelledby="accessibility-title">
             <h3 id="accessibility-title">Display settings</h3>
             <button class="setting-toggle" type="button" id="large-text-toggle" aria-pressed="false">Larger text</button>
@@ -433,7 +531,7 @@
           </div>
           <div class="offline-language-settings">
             <h3>Languages, online and offline</h3>
-            <p>English, Hinglish, and all 22 scheduled Indian languages are included with the site and cached for offline use during the first online visit. AI chat needs an internet connection.</p>
+            <p>A complete build can include English, Hinglish, and all 22 scheduled Indian languages. The website caches every included language on the first online visit; the Android app can include them in its installation. AI chat needs an internet connection.</p>
           </div>
           <div class="feedback-card">
             <h3>Share feedback</h3>

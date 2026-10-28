@@ -3,12 +3,16 @@ const {
   checkTranslationRateLimit,
   handleTranslationRequest
 } = require("../translation-core.cjs");
+const { nativeAppCorsHeaders } = require("../chat-core.cjs");
 
-function sendJson(response, status, body) {
+function sendJson(response, status, body, origin) {
   response.statusCode = status;
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
+  for (const [name, value] of Object.entries(nativeAppCorsHeaders(origin))) {
+    response.setHeader(name, value);
+  }
   response.end(JSON.stringify(body));
 }
 
@@ -35,9 +39,19 @@ function readPayload(request) {
 }
 
 async function handler(request, response) {
+  const origin = request.headers.origin;
+  if (request.method === "OPTIONS") {
+    response.statusCode = 204;
+    for (const [name, value] of Object.entries(nativeAppCorsHeaders(origin))) {
+      response.setHeader(name, value);
+    }
+    response.end();
+    return;
+  }
+
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
-    sendJson(response, 405, { error: "Use POST to translate the page." });
+    sendJson(response, 405, { error: "Use POST to translate the page." }, origin);
     return;
   }
 
@@ -46,22 +60,22 @@ async function handler(request, response) {
     ? forwardedIp.split(",")[0].trim()
     : request.socket?.remoteAddress || "unknown";
   if (!checkTranslationRateLimit(clientIp)) {
-    sendJson(response, 429, { error: "Too many translation requests. Please wait a minute and try again." });
+    sendJson(response, 429, { error: "Too many translation requests. Please wait a minute and try again." }, origin);
     return;
   }
 
   const parsed = readPayload(request);
   if (parsed.error) {
-    sendJson(response, parsed.status, { error: parsed.error });
+    sendJson(response, parsed.status, { error: parsed.error }, origin);
     return;
   }
 
   try {
     const result = await handleTranslationRequest(parsed.payload);
-    sendJson(response, result.status, result.body);
+    sendJson(response, result.status, result.body, origin);
   } catch (error) {
     console.error("[vercel-translate] Could not process translation request:", error.message);
-    sendJson(response, 500, { error: "Something went wrong while translating the page." });
+    sendJson(response, 500, { error: "Something went wrong while translating the page." }, origin);
   }
 }
 

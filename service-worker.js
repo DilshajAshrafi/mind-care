@@ -1,4 +1,4 @@
-const CACHE_NAME = "mind-care-shell-v9";
+const CACHE_NAME = "mind-care-shell-v13";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -8,7 +8,9 @@ const APP_SHELL = [
   "/script.js",
   "/favicon.svg",
   "/manifest.webmanifest",
-  "/service-worker.js",
+  "/service-worker.js"
+];
+const LANGUAGE_PACKS = [
   "/language-packs/as.json",
   "/language-packs/bn.json",
   "/language-packs/brx.json",
@@ -35,7 +37,16 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(caches.open(CACHE_NAME).then(async (cache) => {
+    await cache.addAll(APP_SHELL);
+    await Promise.all(LANGUAGE_PACKS.map(async (url) => {
+      try {
+        await cache.add(url);
+      } catch (error) {
+        console.warn(`[offline] Optional language pack could not be cached: ${url}`, error.message);
+      }
+    }));
+  }));
   self.skipWaiting();
 });
 
@@ -61,5 +72,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(caches.match(event.request).then((cachedResponse) => cachedResponse || fetch(event.request)));
+  event.respondWith(caches.match(event.request).then(async (cachedResponse) => {
+    if (cachedResponse) return cachedResponse;
+    const response = await fetch(event.request);
+    if (response.ok) {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(event.request, response.clone());
+      } catch (error) {
+        console.warn("[offline] A fetched asset could not be cached:", error.message);
+      }
+    }
+    return response;
+  }));
 });

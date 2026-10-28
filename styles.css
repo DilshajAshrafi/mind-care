@@ -90,6 +90,23 @@ h1 em, h2 em { color: #66816d; font-family: Georgia, serif; font-weight: 400; }
 .section-intro > p:last-of-type { max-width: 315px; margin-bottom: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.8; }
 .checkin-decoration { margin-top: 30px; color: #9ab19a; font-size: 34px; }
 .checkin-card { padding: 36px 39px 24px; border: 1px solid #e3e8de; border-radius: 5px; background: var(--paper); box-shadow: 0 16px 38px #3049360b; }
+.focus-section, .daily-care-section { background: #edf1e9; }
+.focus-layout, .daily-care-layout { display: grid; grid-template-columns: .82fr 1.18fr; gap: 80px; align-items: center; }
+.focus-intro h2, .daily-care-layout h2 { margin-bottom: 20px; font-size: clamp(40px, 4vw, 54px); line-height: 1.14; }
+.focus-intro > p:not(.eyebrow), .daily-care-layout > div:first-child > p:not(.eyebrow) { max-width: 430px; color: var(--ink-soft); font-size: 14px; line-height: 1.8; }
+.focus-card, .daily-care-card { padding: 34px; border: 1px solid #e3e8de; border-radius: 5px; background: var(--paper); box-shadow: 0 16px 38px #3049360b; }
+.focus-modes { display: flex; flex-wrap: wrap; gap: 10px; }
+.focus-mode { min-height: 42px; padding: 0 15px; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); color: var(--ink); cursor: pointer; }
+.focus-mode[aria-pressed="true"] { border-color: var(--green); background: var(--sage); color: var(--green-dark); font-weight: 800; }
+.focus-clock { margin: 30px 0 22px; color: var(--ink); font-size: clamp(58px, 9vw, 88px); font-weight: 800; letter-spacing: -4px; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; }
+.focus-actions { display: flex; justify-content: center; gap: 12px; }
+.focus-status, .daily-care-status { min-height: 24px; margin: 22px 0 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; text-align: center; }
+.care-step { display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--ink); cursor: pointer; }
+.care-step input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--green); }
+.care-step input:checked + span { text-decoration: line-through; color: var(--ink-soft); }
+.mood-insight { margin: 18px 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 4px; background: var(--sage); }
+.mood-insight h4 { margin: 0 0 7px; color: var(--ink); font-size: 13px; }
+.mood-insight p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
 .card-kicker { margin-bottom: 22px; color: #7a8a7c; font-size: 10px; font-weight: 700; letter-spacing: 1.4px; }
 .mood-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; }
 .mood-option { display: flex; min-height: 104px; flex-direction: column; align-items: center; justify-content: center; gap: 11px; padding: 10px 4px; border: 1px solid #e4e9e1; border-radius: 4px; background: white; color: #637368; font-size: 10px; cursor: pointer; transition: border-color .2s, background .2s, transform .2s; }
@@ -754,4 +771,73 @@ body[data-high-contrast="true"] :is(a, button, input, textarea, select):focus-vi
 
 @media (max-width: 650px) {
   .checkin-grid > * { min-width: 0; }
+}
+
+.download-screen { min-height: calc(100vh - 74px); background: #f0eff7; }
+.download-layout { display: grid; grid-template-columns: 1.1fr .9fr; gap: 65px; align-items: center; }
+.download-copy h1 { font-size: clamp(48px, 5vw, 66px); }
+.download-copy > p:not(.eyebrow) { max-width: 560px; color: var(--ink-soft); font-size: 14px; line-height: 1.8; }
+.download-card { display: grid; grid-template-columns: 42px 1fr auto; gap: 10px 14px; align-items: center; max-width: 620px; margin-top: 27px; padding: 18px; border: 1px solid #dcd7e8; border-radius: 14px; background: var(--paper); box-shadow: 5px 6px 0 #ded9ec; }
+.download-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: #eeebf7; color: #716a9e; font-size: 21px; }
+.download-card-copy strong, .download-card-copy span { display: block; }
+.download-card-copy strong { margin-bottom: 4px; color: #403d5e; font-size: 13px; }
+.download-card-copy span { color: #77738d; font-size: 11px; }
+.download-card .button { grid-column: 2 / -1; justify-self: start; }
+.download-card #android-download-link[hidden] { display: none; }
+.download-status { grid-column: 1 / -1; min-height: 20px; margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.6; }
+.download-retry { grid-column: 2 / -1; justify-self: start; padding: 4px 0; border: 0; background: transparent; color: var(--green); font-size: 11px; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.download-retry:disabled { cursor: wait; opacity: .65; }
+.download-safety { margin: 16px 0 0; color: var(--ink-soft); font-size: 11px !important; }
+.download-art { position: relative; display: grid; min-height: 400px; place-items: center; border-radius: 44% 44% 14px 14px; background: #e2dfef; }
+.download-phone { position: relative; display: flex; width: 205px; height: 345px; flex-direction: column; align-items: center; padding: 37px 17px 20px; border: 7px solid #353454; border-radius: 30px; background: #fffefa; box-shadow: 13px 15px 0 #c9c4df; }
+.download-phone-speaker { position: absolute; top: 12px; width: 45px; height: 4px; border-radius: 5px; background: #b8b4c6; }
+.download-phone-flower { display: grid; width: 57px; height: 57px; place-items: center; margin: 47px 0 14px; border-radius: 50%; background: #eeebf7; color: #716a9e; font-size: 30px; }
+.download-phone > strong { color: #353454; font-size: 22px; letter-spacing: -1px; }
+.download-phone > strong span { color: #b38326; }
+.download-phone-caption { margin-top: 9px; color: #77738d; font-size: 11px; }
+.download-phone-button { margin-top: auto; padding: 10px 15px; border-radius: 7px; background: #514d83; color: white; font-size: 10px; font-weight: 800; }
+.download-art-star { position: absolute; color: #716a9e; }
+.download-art-star-one { top: 56px; left: 18%; font-size: 29px; }
+.download-art-star-two { right: 15%; bottom: 62px; color: #b38326; font-size: 36px; }
+body[data-theme="dark"] :is(.download-screen, .download-art) { background: var(--cream); }
+body[data-theme="dark"] .download-card { border-color: var(--line); background: var(--paper); }
+body[data-theme="dark"] .download-card-copy strong { color: var(--ink); }
+body[data-theme="dark"] .download-phone { border-color: #55566a; background: var(--paper); }
+body[data-theme="dark"] .download-phone > strong { color: var(--ink); }
+body[data-high-contrast="true"] :is(.download-screen, .download-art, .download-card, .download-phone) { border-color: #111 !important; background: #fff !important; color: #111 !important; box-shadow: none; }
+body[data-high-contrast="true"] :is(.download-screen p, .download-card-copy strong, .download-card-copy span, .download-phone > strong, .download-phone-caption) { color: #111 !important; }
+body[data-high-contrast="true"] :is(.download-icon, .download-phone-flower) { border: 1px solid #111; background: #fff; color: #111; }
+body[data-theme="dark"] :is(.focus-section, .daily-care-section) { background: var(--cream); }
+body[data-theme="dark"] :is(.focus-card, .daily-care-card, .mood-insight, .focus-mode) { border-color: var(--line); background: var(--paper); color: var(--ink); box-shadow: none; }
+body[data-theme="dark"] .focus-mode[aria-pressed="true"] { background: var(--sage); color: var(--green); }
+body[data-theme="dark"] :is(.focus-intro > p, .daily-care-layout > div:first-child > p, .focus-status, .daily-care-status, .mood-insight p) { color: var(--ink-soft); }
+body[data-theme="dark"] .mood-insight h4 { color: var(--ink); }
+body[data-high-contrast="true"] :is(.focus-section, .daily-care-section, .focus-card, .daily-care-card, .focus-mode, .mood-insight) { border-color: #111 !important; background: #fff !important; color: #111 !important; box-shadow: none; }
+body[data-high-contrast="true"] :is(.focus-section p, .daily-care-section p, .focus-mode, .focus-clock, .care-step, .mood-insight h4, .mood-insight p) { color: #111 !important; }
+body[data-high-contrast="true"] .focus-mode[aria-pressed="true"] { border-width: 2px; }
+body[data-large-text="true"] :is(.focus-status, .daily-care-status, .mood-insight p, .focus-mode) { font-size: max(1em, calc(1em + 2px)); line-height: 1.6; }
+@media (max-width: 800px) {
+  .focus-layout, .daily-care-layout { grid-template-columns: 1fr; gap: 30px; }
+}
+@media (max-width: 650px) {
+  .focus-card, .daily-care-card { padding: 24px 18px; }
+  .focus-modes { flex-direction: column; }
+  .focus-mode { width: 100%; }
+}
+
+@media (max-width: 900px) {
+  .download-layout { gap: 35px; }
+  .download-art { min-height: 350px; }
+  .download-phone { transform: scale(.9); }
+}
+
+@media (max-width: 650px) {
+  .download-layout { grid-template-columns: 1fr; gap: 30px; }
+  .download-copy h1 { font-size: clamp(45px, 12vw, 62px); }
+  .download-card { grid-template-columns: 38px 1fr; padding: 15px; }
+  .download-icon { width: 38px; height: 38px; }
+  .download-card .button { grid-column: 1 / -1; }
+  .download-status, .download-retry { grid-column: 1 / -1; }
+  .download-art { min-height: 330px; }
+  .download-phone { transform: scale(.85); }
 }

@@ -5,13 +5,12 @@ const { LOCALES } = require("../locales.cjs");
 const catalog = require("../translation-catalog.js");
 const {
   MAX_TRANSLATION_CHARACTERS,
-  MAX_TRANSLATION_ITEMS,
-  handleTranslationRequest
+  MAX_TRANSLATION_ITEMS
 } = require("../translation-core.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const PACK_DIRECTORY = path.join(ROOT, "language-packs");
-const MANIFEST_PATH = path.join(PACK_DIRECTORY, "manifest.json");
+const TEMPLATE_DIRECTORY = path.join(ROOT, "language-templates");
 const VOID_ELEMENTS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
 const EXCLUDED_IDS = new Set([
   "contact-list", "plan-list", "mood-history-list", "feedback-list",
@@ -132,7 +131,9 @@ function isValidPack(pack, language, sourceHash, sources) {
     && pack.translations
     && typeof pack.translations === "object"
     && !Array.isArray(pack.translations)
-    && sources.every((source) => typeof pack.translations[source] === "string" && pack.translations[source].trim());
+    && sources.every((source) => typeof pack.translations[source] === "string"
+      && pack.translations[source].trim()
+      && samePlaceholders(source, pack.translations[source]));
 }
 
 async function readPack(filePath, language, sourceHash, sources) {
@@ -158,73 +159,173 @@ async function writeJsonAtomically(filePath, data) {
   await fs.rename(temporaryPath, filePath);
 }
 
-async function buildLanguagePacks({
-  root = ROOT,
-  apiKey = process.env.GEMINI_API_KEY,
-  fetchImpl = fetch,
-  languages = Object.keys(LOCALES),
-  requestDelayMs = 1000,
-  rateLimitPauseMs = 61_000,
-  pause = (duration) => new Promise((resolve) => setTimeout(resolve, duration))
-} = {}) {
+function getCatalog(root) {
+  return fs.readFile(path.join(root, "index.html"), "utf8")
+    .then((html) => {
+      const sources = extractTranslationSources(html);
+      return {
+        sources,
+        sourceHash: crypto.createHash("sha256").update(JSON.stringify(sources)).digest("hex")
+      };
+    });
+}
+
+async function exportLanguageTemplates({ root = ROOT, languages = Object.keys(LOCALES) } = {}) {
+  const { sources, sourceHash } = await getCatalog(root);
+  const templateDirectory = path.join(root, "language-templates");
+  await fs.mkdir(templateDirectory, { recursive: true });
+  const createdLanguages = [];
+  const updatedLanguages = [];
+  const existingLanguages = [];
+
+  for (const language of languages) {
+    if (!Object.hasOwn(LOCALES, language)) throw new Error(`Unsupported language template: ${language}`);
+    const templatePath = path.join(templateDirectory, `${language}.json`);
+    let previousTemplate = null;
+    try {
+      previousTemplate = JSON.parse(await fs.readFile(templatePath, "utf8"));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+
+    if (previousTemplate) {
+      if (previousTemplate.language !== language || !previousTemplate.translations
+        || typeof previousTemplate.translations !== "object" || Array.isArray(previousTemplate.translations)) {
+        throw new Error(`Cannot safely update the ${language} template because its structure is invalid.`);
+      }
+      if (previousTemplate.sourceHash === sourceHash) {
+        existingLanguages.push(language);
+        continue;
+      }
+      const translations = Object.fromEntries(sources.map((source) => [
+        source,
+        typeof previousTemplate.translations[source] === "string" ? previousTemplate.translations[source] : ""
+      ]));
+      await writeJsonAtomically(templatePath, { language, sourceHash, translations });
+      updatedLanguages.push(language);
+      continue;
+    }
+
+    await writeJsonAtomically(templatePath, {
+      language,
+      sourceHash,
+      translations: Object.fromEntries(sources.map((source) => [source, ""]))
+    });
+    createdLanguages.push(language);
+  }
+
+  return { sourceHash, sourceCount: sources.length, createdLanguages, updatedLanguages, existingLanguages };
+}
+
+async function readManualTemplate(templatePath, language, sourceHash, sources) {
+  let template;
+  try {
+    template = JSON.parse(await fs.readFile(templatePath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return { error: "template is missing" };
+    if (error instanceof SyntaxError) return { error: "template is not valid JSON" };
+    throw error;
+  }
+
+  if (template.language !== language) return { error: "language code does not match the template filename" };
+  if (template.sourceHash !== sourceHash) return { error: "template is outdated; export a new template and merge reviewed translations" };
+  if (!template.translations || typeof template.translations !== "object" || Array.isArray(template.translations)) {
+    return { error: "translations must be an object keyed by the exact English source strings" };
+  }
+
+  const missing = sources.filter((source) =>
+    typeof template.translations[source] !== "string" || !template.translations[source].trim()
+  );
+  const invalidPlaceholder = sources.find((source) => typeof template.translations[source] === "string"
+    && template.translations[source].trim()
+    && !samePlaceholders(source, template.translations[source]));
+  const unexpected = Object.keys(template.translations).filter((source) => !sources.includes(source));
+  if (missing.length || invalidPlaceholder || unexpected.length) {
+    const details = [];
+    if (missing.length) details.push(`${missing.length} untranslated source string(s)`);
+    if (invalidPlaceholder) details.push(`placeholder mismatch in "${invalidPlaceholder}"`);
+    if (unexpected.length) details.push(`${unexpected.length} unknown source key(s)`);
+    return { error: details.join(", ") };
+  }
+
+  return { translations: template.translations };
+}
+
+async function buildLanguagePacks({ root = ROOT, languages = Object.keys(LOCALES) } = {}) {
   const html = await fs.readFile(path.join(root, "index.html"), "utf8");
   const sources = extractTranslationSources(html);
   const sourceHash = crypto.createHash("sha256").update(JSON.stringify(sources)).digest("hex");
   const outputDirectory = path.join(root, "language-packs");
-  const filesByLanguage = new Map(languages.map((language) => [language, path.join(outputDirectory, `${language}.json`)]));
-  const existingPacks = new Map();
+  const manualTemplates = new Map();
 
-  for (const [language, filePath] of filesByLanguage) {
+  for (const language of languages) {
     if (!Object.hasOwn(LOCALES, language)) throw new Error(`Unsupported language pack: ${language}`);
-    existingPacks.set(language, await readPack(filePath, language, sourceHash, sources));
+    const result = await readManualTemplate(
+      path.join(root, "language-templates", `${language}.json`),
+      language,
+      sourceHash,
+      sources
+    );
+    if (result.error) manualTemplates.set(language, { error: result.error });
+    else manualTemplates.set(language, result);
   }
 
-  const languagesToBuild = [...filesByLanguage.keys()].filter((language) => !existingPacks.get(language));
-  if (languagesToBuild.length && !apiKey) {
-    throw new Error("GEMINI_API_KEY is required to generate missing or outdated language packs.");
+  const invalidLanguages = [...manualTemplates]
+    .filter(([, result]) => result.error)
+    .map(([language, result]) => `${language} (${result.error})`);
+  if (invalidLanguages.length) {
+    throw new Error(`Manual translations are incomplete: ${invalidLanguages.join("; ")}. Run npm run translations:templates to create or refresh templates, then complete each listed translation.`);
   }
   await fs.mkdir(outputDirectory, { recursive: true });
 
-  for (let index = 0; index < languagesToBuild.length; index += 1) {
-    const language = languagesToBuild[index];
-    let result;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      result = await handleTranslationRequest({ language, texts: sources }, { apiKey, fetchImpl });
-      if (result.status === 200) break;
-      if (result.status === 400 || result.status === 503 || attempt === 2) {
-        throw new Error(`Could not build the ${language} language pack: ${result.body.error}`);
-      }
-      await pause((attempt + 1) * 5000);
-    }
+  const generatedLanguages = [];
+  for (const language of languages) {
+    const packPath = path.join(outputDirectory, `${language}.json`);
+    const existingPack = await readPack(packPath, language, sourceHash, sources);
+    if (existingPack) continue;
 
-    const translations = Object.fromEntries(sources.map((source, textIndex) => [source, result.body.translations[textIndex]]));
-    const invalidToken = sources.find((source) => !samePlaceholders(source, translations[source]));
-    if (invalidToken) throw new Error(`The ${language} translation changed a required placeholder in: ${invalidToken}`);
-
-    await writeJsonAtomically(filesByLanguage.get(language), {
+    await writeJsonAtomically(packPath, {
       language,
       sourceHash,
-      translations
+      translations: manualTemplates.get(language).translations
     });
-
-    const completedBuilds = index + 1;
-    if (requestDelayMs > 0 && completedBuilds < languagesToBuild.length) await pause(requestDelayMs);
-    if (completedBuilds % 7 === 0 && completedBuilds < languagesToBuild.length) await pause(rateLimitPauseMs);
+    generatedLanguages.push(language);
   }
 
   await writeJsonAtomically(path.join(outputDirectory, "manifest.json"), {
     sourceHash,
-    languages: [...filesByLanguage.keys()],
+    languages: [...languages],
     sourceCount: sources.length
   });
 
-  return { sourceHash, sourceCount: sources.length, generatedLanguages: languagesToBuild };
+  return { sourceHash, sourceCount: sources.length, generatedLanguages };
+}
+
+async function setBundledLanguagePacks(enabled, root = ROOT) {
+  const configPath = path.join(root, "app-config.js");
+  const config = await fs.readFile(configPath, "utf8");
+  const flagPattern = /bundledLanguagePacks:\s*(?:true|false)/;
+  const updated = flagPattern.test(config)
+    ? config.replace(flagPattern, `bundledLanguagePacks: ${enabled}`)
+    : config.replace(
+      /(chatApiBaseUrl:\s*"(?:\\.|[^"])*")/,
+      `$1,\n  bundledLanguagePacks: ${enabled}`
+    );
+  if (updated === config && !flagPattern.test(config)) {
+    throw new Error("Could not update the bundled-language configuration in app-config.js.");
+  }
+  await fs.writeFile(configPath, updated, "utf8");
 }
 
 if (require.main === module) {
-  buildLanguagePacks()
+  setBundledLanguagePacks(false)
+    .then(() => buildLanguagePacks())
+    .then(async (result) => {
+      await setBundledLanguagePacks(true);
+      return result;
+    })
     .then(({ sourceCount, generatedLanguages }) => {
-      console.log(`Language packs ready (${sourceCount} interface strings). Generated ${generatedLanguages.length} pack(s).`);
+      console.log(`Manually translated language packs ready (${sourceCount} interface strings, ${generatedLanguages.length} locales).`);
     })
     .catch((error) => {
       console.error(`[language-packs] ${error.message}`);
@@ -232,4 +333,10 @@ if (require.main === module) {
     });
 }
 
-module.exports = { buildLanguagePacks, extractTranslationSources, isValidPack };
+module.exports = {
+  buildLanguagePacks,
+  exportLanguageTemplates,
+  extractTranslationSources,
+  isValidPack,
+  setBundledLanguagePacks
+};

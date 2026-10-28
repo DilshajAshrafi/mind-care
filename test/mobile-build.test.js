@@ -15,6 +15,15 @@ test("mobile chat API configuration accepts only an HTTPS base URL", () => {
   }
 });
 
+test("Android app enables internet for chat and disables automatic backup of wellbeing data", async () => {
+  const manifest = await fs.readFile(
+    path.join(__dirname, "..", "android", "app", "src", "main", "AndroidManifest.xml"),
+    "utf8"
+  );
+  assert.match(manifest, /android:allowBackup="false"/);
+  assert.match(manifest, /android\.permission\.INTERNET/);
+});
+
 test("mobile preparation refuses to package missing language packs or API configuration", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "mind-care-mobile-incomplete-"));
   try {
@@ -58,8 +67,38 @@ test("mobile preparation packages every current locale and the configured chat b
     });
     assert.equal(result.languages.length, 23);
     assert.equal(JSON.parse(await fs.readFile(path.join(outputDirectory, "language-packs", "hi.json"), "utf8")).language, "hi");
-    assert.match(await fs.readFile(path.join(outputDirectory, "app-config.js"), "utf8"), /https:\/\/mind-care\.example/);
-    assert.equal(await fs.readFile(path.join(outputDirectory, "index.html"), "utf8"), await fs.readFile(path.join(root, "index.html"), "utf8"));
+    const appConfig = await fs.readFile(path.join(outputDirectory, "app-config.js"), "utf8");
+    assert.match(appConfig, /https:\/\/mind-care\.example/);
+    assert.match(appConfig, /bundledLanguagePacks: true/);
+    assert.equal(
+      await fs.readFile(path.join(outputDirectory, "index.html"), "utf8"),
+      await fs.readFile(path.join(root, "index.html"), "utf8")
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("online mobile preparation works without language packs and configures online fallback", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "mind-care-mobile-online-"));
+  const outputDirectory = path.join(root, "dist");
+  const projectRoot = path.join(__dirname, "..");
+  const assets = ["index.html", "styles.css", "script.js", "translation-catalog.js", "app-config.js", "favicon.svg", "manifest.webmanifest", "service-worker.js"];
+  try {
+    for (const asset of assets) await fs.copyFile(path.join(projectRoot, asset), path.join(root, asset));
+
+    const result = await prepareMobile({
+      root,
+      outputDirectory,
+      apiBaseUrl: "https://mind-care.example",
+      requireBundledPacks: false
+    });
+    const appConfig = await fs.readFile(path.join(outputDirectory, "app-config.js"), "utf8");
+    assert.equal(result.languages.length, 23);
+    assert.equal(result.bundledPacks, false);
+    assert.match(appConfig, /chatApiBaseUrl: "https:\/\/mind-care\.example"/);
+    assert.match(appConfig, /bundledLanguagePacks: false/);
+    await assert.rejects(fs.access(path.join(outputDirectory, "language-packs")));
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

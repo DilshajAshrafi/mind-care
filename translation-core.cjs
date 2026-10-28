@@ -5,6 +5,14 @@ const MAX_TRANSLATION_ITEMS = 600;
 const MAX_TRANSLATION_CHARACTERS = 30_000;
 const MODEL = "gemini-3.6-flash";
 const translationRateLimits = new Map();
+const PLACEHOLDER_PATTERN = /\{\{[^{}]+\}\}/g;
+
+function preservesPlaceholders(source, translation) {
+  const sourceTokens = source.match(PLACEHOLDER_PATTERN) || [];
+  const translationTokens = translation.match(PLACEHOLDER_PATTERN) || [];
+  return sourceTokens.length === translationTokens.length
+    && sourceTokens.every((token, index) => token === translationTokens[index]);
+}
 
 function checkTranslationRateLimit(clientKey, now = Date.now()) {
   for (const [key, limit] of translationRateLimits) {
@@ -118,7 +126,10 @@ async function handleTranslationRequest(payload, { apiKey = process.env.GEMINI_A
   }
 
   if (!Array.isArray(translations) || translations.length !== validation.texts.length
-    || translations.some((text) => typeof text !== "string" || !text.trim() || text.length > 4000)) {
+    || translations.some((text, index) => typeof text !== "string"
+      || !text.trim()
+      || text.length > 4000
+      || !preservesPlaceholders(validation.texts[index], text))) {
     return { status: 502, body: { error: "The translation service returned incomplete text. English remains available." } };
   }
 

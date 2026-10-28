@@ -20,7 +20,8 @@ const publicFiles = new Map([
   ["/app-config.js", ["app-config.js", "text/javascript; charset=utf-8"]],
   ["/favicon.svg", ["favicon.svg", "image/svg+xml"]],
   ["/manifest.webmanifest", ["manifest.webmanifest", "application/manifest+json; charset=utf-8"]],
-  ["/service-worker.js", ["service-worker.js", "text/javascript; charset=utf-8"]]
+  ["/service-worker.js", ["service-worker.js", "text/javascript; charset=utf-8"]],
+  ["/downloads/mind-care.apk", [path.join("downloads", "mind-care.apk"), "application/vnd.android.package-archive"]]
 ]);
 
 function sendJson(response, status, body, origin) {
@@ -53,33 +54,40 @@ const server = http.createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host || "localhost"}`);
 
   if (requestUrl.pathname === "/api/translate") {
+    const origin = request.headers.origin;
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, nativeAppCorsHeaders(origin));
+      response.end();
+      return;
+    }
+
     if (request.method !== "POST") {
       response.setHeader("Allow", "POST");
-      sendJson(response, 405, { error: "Use POST to translate the page." });
+      sendJson(response, 405, { error: "Use POST to translate the page." }, origin);
       return;
     }
 
     const clientKey = request.socket.remoteAddress || "local";
     if (!checkTranslationRateLimit(clientKey)) {
-      sendJson(response, 429, { error: "Too many translation requests. Please wait a minute and try again." });
+      sendJson(response, 429, { error: "Too many translation requests. Please wait a minute and try again." }, origin);
       return;
     }
 
     try {
       const payload = await readJsonBody(request, MAX_TRANSLATION_REQUEST_LENGTH);
       const result = await handleTranslationRequest(payload);
-      sendJson(response, result.status, result.body);
+      sendJson(response, result.status, result.body, origin);
     } catch (error) {
       if (error instanceof RangeError) {
-        sendJson(response, 413, { error: "The page translation request is too large." });
+        sendJson(response, 413, { error: "The page translation request is too large." }, origin);
         return;
       }
       if (error instanceof SyntaxError) {
-        sendJson(response, 400, { error: error.message });
+        sendJson(response, 400, { error: error.message }, origin);
         return;
       }
       console.error("[server] Could not process translation request:", error.message);
-      sendJson(response, 500, { error: "Something went wrong while translating the page." });
+      sendJson(response, 500, { error: "Something went wrong while translating the page." }, origin);
     }
     return;
   }
@@ -109,15 +117,15 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, result.status, result.body, origin);
     } catch (error) {
       if (error instanceof RangeError) {
-        sendJson(response, 413, { error: "That message is too long. Please shorten it and try again." });
+        sendJson(response, 413, { error: "That message is too long. Please shorten it and try again." }, origin);
         return;
       }
       if (error instanceof SyntaxError) {
-        sendJson(response, 400, { error: error.message });
+        sendJson(response, 400, { error: error.message }, origin);
         return;
       }
       console.error("[server] Could not process chat request:", error.message);
-      sendJson(response, 500, { error: "Something went wrong. Please try again later." });
+      sendJson(response, 500, { error: "Something went wrong. Please try again later." }, origin);
     }
     return;
   }
@@ -149,16 +157,32 @@ const server = http.createServer(async (request, response) => {
   }
 
   try {
+    if (pathname === "/downloads/mind-care.apk" && request.method === "HEAD") {
+      const stat = await fs.stat(path.join(ROOT, file[0]));
+      response.writeHead(200, {
+        "Content-Type": file[1],
+        "Content-Length": stat.size,
+        "Content-Disposition": 'attachment; filename="mind-care.apk"',
+        "Cache-Control": "no-cache",
+        "X-Content-Type-Options": "nosniff"
+      });
+      response.end();
+      return;
+    }
+
     const content = await fs.readFile(path.join(ROOT, file[0]));
     response.writeHead(200, {
       "Content-Type": file[1],
+      ...(pathname === "/downloads/mind-care.apk"
+        ? { "Content-Disposition": 'attachment; filename="mind-care.apk"' }
+        : {}),
       "Cache-Control": "no-cache",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin"
     });
     response.end(request.method === "HEAD" ? undefined : content);
   } catch (error) {
-    console.error("[server] Could not serve a public asset:", error.message);
+    if (error.code !== "ENOENT") console.error("[server] Could not serve a public asset:", error.message);
     response.writeHead(error.code === "ENOENT" ? 404 : 500);
     response.end(error.code === "ENOENT" ? "Not found" : "Could not load the page");
   }

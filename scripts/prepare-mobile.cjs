@@ -34,7 +34,8 @@ function assertApiBaseUrl(value) {
 async function prepareMobile({
   root = ROOT,
   outputDirectory = path.join(root, "dist"),
-  apiBaseUrl = process.env.MIND_CARE_API_BASE_URL
+  apiBaseUrl = process.env.MIND_CARE_API_BASE_URL,
+  requireBundledPacks = true
 } = {}) {
   if (!apiBaseUrl) {
     throw new Error("Set MIND_CARE_API_BASE_URL to the deployed HTTPS chat API before building the mobile app.");
@@ -44,51 +45,54 @@ async function prepareMobile({
   const sources = extractTranslationSources(html);
   const sourceHash = crypto.createHash("sha256").update(JSON.stringify(sources)).digest("hex");
   const packDirectory = path.join(root, "language-packs");
-  const missingLanguages = [];
-  let manifest;
-  try {
-    manifest = JSON.parse(await fs.readFile(path.join(packDirectory, "manifest.json"), "utf8"));
-  } catch (error) {
-    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
-  }
   const expectedLanguages = Object.keys(LOCALES);
-  const manifestIsValid = manifest?.sourceHash === sourceHash
-    && manifest.sourceCount === sources.length
-    && Array.isArray(manifest.languages)
-    && expectedLanguages.every((language) => manifest.languages.includes(language))
-    && manifest.languages.length === expectedLanguages.length;
-  if (!manifestIsValid) {
-    throw new Error("The language-pack manifest is missing, outdated, or incomplete. Build all 23 language packs first.");
-  }
-
-  for (const language of expectedLanguages) {
-    let pack;
+  if (requireBundledPacks) {
+    const missingLanguages = [];
+    let manifest;
     try {
-      pack = JSON.parse(await fs.readFile(path.join(packDirectory, `${language}.json`), "utf8"));
+      manifest = JSON.parse(await fs.readFile(path.join(packDirectory, "manifest.json"), "utf8"));
     } catch (error) {
       if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
     }
 
-    const translations = pack?.translations;
-    const validPack = pack?.language === language
-      && pack.sourceHash === sourceHash
-      && translations
-      && typeof translations === "object"
-      && !Array.isArray(translations)
-      && sources.every((source) => {
-        const translation = translations[source];
-        const sourceTokens = source.match(PLACEHOLDER_PATTERN) || [];
-        const translationTokens = typeof translation === "string" ? translation.match(PLACEHOLDER_PATTERN) || [] : [];
-        return typeof translation === "string"
-          && translation.trim()
-          && sourceTokens.length === translationTokens.length
-          && sourceTokens.every((token, index) => token === translationTokens[index]);
-      });
-    if (!validPack) missingLanguages.push(language);
-  }
+    const manifestIsValid = manifest?.sourceHash === sourceHash
+      && manifest.sourceCount === sources.length
+      && Array.isArray(manifest.languages)
+      && expectedLanguages.every((language) => manifest.languages.includes(language))
+      && manifest.languages.length === expectedLanguages.length;
+    if (!manifestIsValid) {
+      throw new Error("The language-pack manifest is missing, outdated, or incomplete. Build all 23 language packs first, or use the online-translation Android build.");
+    }
 
-  if (missingLanguages.length) {
-    throw new Error(`Missing complete, current language packs: ${missingLanguages.join(", ")}. Build and verify all packs before packaging the offline app.`);
+    for (const language of expectedLanguages) {
+      let pack;
+      try {
+        pack = JSON.parse(await fs.readFile(path.join(packDirectory, `${language}.json`), "utf8"));
+      } catch (error) {
+        if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+      }
+
+      const translations = pack?.translations;
+      const validPack = pack?.language === language
+        && pack.sourceHash === sourceHash
+        && translations
+        && typeof translations === "object"
+        && !Array.isArray(translations)
+        && sources.every((source) => {
+          const translation = translations[source];
+          const sourceTokens = source.match(PLACEHOLDER_PATTERN) || [];
+          const translationTokens = typeof translation === "string" ? translation.match(PLACEHOLDER_PATTERN) || [] : [];
+          return typeof translation === "string"
+            && translation.trim()
+            && sourceTokens.length === translationTokens.length
+            && sourceTokens.every((token, index) => token === translationTokens[index]);
+        });
+      if (!validPack) missingLanguages.push(language);
+    }
+
+    if (missingLanguages.length) {
+      throw new Error(`Missing complete, current language packs: ${missingLanguages.join(", ")}. Build and verify all packs before packaging the offline app.`);
+    }
   }
 
   await fs.rm(outputDirectory, { recursive: true, force: true });
@@ -96,19 +100,25 @@ async function prepareMobile({
   for (const asset of APP_ASSETS) {
     await fs.copyFile(path.join(root, asset), path.join(outputDirectory, asset));
   }
-  await fs.cp(packDirectory, path.join(outputDirectory, "language-packs"), { recursive: true });
+  if (requireBundledPacks) {
+    await fs.cp(packDirectory, path.join(outputDirectory, "language-packs"), { recursive: true });
+  }
   await fs.writeFile(
     path.join(outputDirectory, "app-config.js"),
-    `globalThis.MIND_CARE_APP_CONFIG = Object.freeze({ chatApiBaseUrl: ${JSON.stringify(chatApiBaseUrl)} });\n`,
+    `globalThis.MIND_CARE_APP_CONFIG = Object.freeze({ chatApiBaseUrl: ${JSON.stringify(chatApiBaseUrl)}, bundledLanguagePacks: ${requireBundledPacks} });\n`,
     "utf8"
   );
-  return { chatApiBaseUrl, languages: Object.keys(LOCALES), outputDirectory };
+  return { chatApiBaseUrl, languages: expectedLanguages, outputDirectory, bundledPacks: requireBundledPacks };
 }
 
 if (require.main === module) {
-  prepareMobile()
-    .then(({ languages, outputDirectory }) => {
-      console.log(`Mobile web app ready in ${outputDirectory} with ${languages.length} offline language packs.`);
+  const requireBundledPacks = !process.argv.includes("--online-translation");
+  prepareMobile({ requireBundledPacks })
+    .then(({ languages, outputDirectory, bundledPacks }) => {
+      const availability = bundledPacks
+        ? `${languages.length} bundled offline language packs`
+        : `${languages.length} online languages, saved offline on each device after translation`;
+      console.log(`Mobile web app ready in ${outputDirectory} with ${availability}.`);
     })
     .catch((error) => {
       console.error(`[mobile-build] ${error.message}`);

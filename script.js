@@ -9,13 +9,19 @@ const largeTextToggle = document.querySelector("#large-text-toggle");
 const highContrastToggle = document.querySelector("#high-contrast-toggle");
 const themeToggle = document.querySelector("#theme-toggle");
 const languageSelect = document.querySelector("#language-select");
+const androidDownloadLink = document.querySelector("#android-download-link");
+const androidDownloadStatus = document.querySelector("#android-download-status");
+const androidDownloadRetry = document.querySelector("#android-download-retry");
 const translationCatalog = globalThis.MIND_CARE_TRANSLATION_CATALOG;
 const chatApiBaseUrl = globalThis.MIND_CARE_APP_CONFIG?.chatApiBaseUrl || "";
+const bundledLanguagePacks = globalThis.MIND_CARE_APP_CONFIG?.bundledLanguagePacks === true;
 const JOURNAL_STORAGE_KEY = "mind-care-journal-v1";
 const LARGE_TEXT_STORAGE_KEY = "mind-care-large-text-v1";
 const HIGH_CONTRAST_STORAGE_KEY = "mind-care-high-contrast-v1";
 const THEME_STORAGE_KEY = "mind-care-theme-v1";
 const LANGUAGE_STORAGE_KEY = "mind-care-language-v1";
+const TRANSLATION_CACHE_DATABASE = "mind-care-translations-v1";
+const TRANSLATION_CACHE_STORE = "packs";
 const OBSOLETE_CREATOR_STORAGE_KEY = "mind-care-creator-v1";
 const NEEDS_RESPONSES = translationCatalog.needsResponses;
 const URGENT_CHAT_RESPONSE = translationCatalog.urgentChatResponse;
@@ -24,6 +30,7 @@ const EXTRA_TRANSLATION_TEXTS = [
   ...Object.values(NEEDS_RESPONSES),
   URGENT_CHAT_RESPONSE
 ];
+const RIGHT_TO_LEFT_LANGUAGES = new Set(["sd", "ur"]);
 let selectedLanguage = "en";
 let currentTranslations = Object.create(null);
 let activeScreen;
@@ -105,6 +112,34 @@ function findScreenFromHash(hash) {
   return target?.closest(".app-screen") || document.querySelector('[data-screen="home"]');
 }
 
+async function checkAndroidDownload() {
+  androidDownloadLink.hidden = true;
+
+  if (location.protocol === "capacitor:") {
+    androidDownloadStatus.textContent = localized("Open the Mind Care website to check for the Android APK.");
+    return;
+  }
+
+  androidDownloadRetry.disabled = true;
+  androidDownloadStatus.textContent = localized("Checking whether an APK is available…");
+  try {
+    const response = await fetch("/downloads/mind-care.apk", { method: "HEAD", cache: "no-store" });
+    if (response.ok) {
+      androidDownloadLink.hidden = false;
+      androidDownloadStatus.textContent = localized("The latest Android APK is ready to download.");
+    } else if (response.status === 404) {
+      androidDownloadStatus.textContent = localized("The Android APK is not published yet. Please check back soon.");
+    } else {
+      androidDownloadStatus.textContent = localized("We couldn't check for the APK right now. Please try again later.");
+    }
+  } catch (error) {
+    console.error("[android-download] APK availability could not be checked:", error.name);
+    androidDownloadStatus.textContent = localized("We couldn't check for the APK right now. Please try again later.");
+  } finally {
+    androidDownloadRetry.disabled = false;
+  }
+}
+
 function setActiveScreen(screen, moveFocus = false) {
   if (!screen) return;
   activeScreen = screen;
@@ -181,6 +216,8 @@ window.addEventListener("popstate", () => {
 });
 
 setActiveScreen(findScreenFromHash(location.hash));
+androidDownloadRetry.addEventListener("click", checkAndroidDownload);
+checkAndroidDownload();
 loadSavedPreferences();
 
 journalEntry.addEventListener("input", updateJournalCounter);
@@ -371,6 +408,16 @@ taskButton.addEventListener("click", () => {
 const sleepButton = document.querySelector("#sleep-button");
 const sleepTips = [...document.querySelectorAll(".sleep-tip input")];
 const sleepResponse = document.querySelector("#sleep-response");
+const focusClock = document.querySelector("#focus-clock");
+const focusStatus = document.querySelector("#focus-status");
+const focusStartButton = document.querySelector("#focus-start");
+const focusModeButtons = [...document.querySelectorAll(".focus-mode")];
+const focusResetButton = document.querySelector("#focus-reset");
+let focusDuration = 25 * 60;
+let focusRemaining = focusDuration;
+let focusDeadline = 0;
+let focusInterval = null;
+let focusMode = "focus";
 
 sleepButton.addEventListener("click", () => {
   const nextTip = sleepTips.find((tip) => !tip.checked);
@@ -430,6 +477,7 @@ breathButton.addEventListener("click", () => {
 
 const MOOD_HISTORY_KEY = "mind-care-mood-history-v1";
 const PLANNER_KEY = "mind-care-planner-v1";
+const DAILY_CARE_KEY = "mind-care-daily-care-v1";
 const CONTACTS_KEY = "mind-care-contacts-v1";
 const FEEDBACK_KEY = "mind-care-feedback-v1";
 function readLocalArray(key, statusNode) {
@@ -462,6 +510,7 @@ function saveLocalValue(key, value, statusNode, successMessage, errorMessage) {
 function renderMoodHistory() {
   const list = document.querySelector("#mood-history-list");
   const historyItems = readLocalArray(MOOD_HISTORY_KEY, list);
+  renderMoodInsight(historyItems);
   list.replaceChildren();
   if (list.dataset.storageError) {
     const error = document.createElement("li");
@@ -486,6 +535,147 @@ function renderMoodHistory() {
     list.append(row);
   });
 }
+
+function renderMoodInsight(historyItems) {
+  const insight = document.querySelector("#mood-insight");
+  const now = Date.now();
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const recent = historyItems.filter((item) => {
+    const timestamp = Date.parse(item?.at);
+    return Number.isFinite(timestamp) && timestamp >= weekAgo && timestamp <= now
+      && moodButtons.length && [...moodButtons].some((button) => button.dataset.mood === item.mood);
+  });
+  if (!recent.length) {
+    insight.textContent = localized("No mood check-ins saved in the last seven days. Checking in is optional.");
+    return;
+  }
+  const counts = new Map();
+  recent.forEach((item) => counts.set(item.mood, (counts.get(item.mood) || 0) + 1));
+  const mostSelectedMood = [...counts.entries()].sort((first, second) => second[1] - first[1])[0][0];
+  const moodLabel = [...moodButtons].find((button) => button.dataset.mood === mostSelectedMood)
+    ?.querySelector("span:last-child")?.textContent || mostSelectedMood;
+  const summary = recent.length === 1
+    ? localized("One mood check-in saved in the last seven days. This is for reflection, not a diagnosis.")
+    : localized("{{COUNT}} mood check-ins saved in the last seven days. This is for reflection, not a diagnosis.", { COUNT: recent.length });
+  insight.textContent = `${summary} ${localized("Your most selected mood: {{MOOD}}.", { MOOD: moodLabel })}`;
+}
+
+function renderDailyCareStatus() {
+  const status = document.querySelector("#daily-care-status");
+  const checkboxes = [...document.querySelectorAll("[data-care-index]")];
+  const completedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
+  status.textContent = localized("{{DONE}}/3 small care steps marked today.", { DONE: completedCount });
+}
+
+function currentLocalDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function loadDailyCare() {
+  const status = document.querySelector("#daily-care-status");
+  try {
+    const saved = localStorage.getItem(DAILY_CARE_KEY);
+    const today = currentLocalDate();
+    document.querySelectorAll("[data-care-index]").forEach((checkbox) => { checkbox.checked = false; });
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.completed)) {
+        throw new TypeError("Saved checklist has an invalid shape.");
+      }
+      if (parsed.date === today) {
+        document.querySelectorAll("[data-care-index]").forEach((checkbox) => {
+          checkbox.checked = parsed.completed.includes(Number(checkbox.dataset.careIndex));
+        });
+      }
+    }
+    renderDailyCareStatus();
+  } catch (error) {
+    console.error("[daily-care] The saved checklist could not be read:", error.name);
+    status.textContent = localized("Your saved daily checklist could not be read.");
+  }
+}
+
+document.querySelectorAll("[data-care-index]").forEach((checkbox) => {
+  checkbox.addEventListener("change", () => {
+    const completed = [...document.querySelectorAll("[data-care-index]")]
+      .filter((item) => item.checked)
+      .map((item) => Number(item.dataset.careIndex));
+    try {
+      localStorage.setItem(DAILY_CARE_KEY, JSON.stringify({ date: currentLocalDate(), completed }));
+      renderDailyCareStatus();
+    } catch (error) {
+      console.error("[daily-care] The checklist could not be saved:", error.name);
+      document.querySelector("#daily-care-status").textContent = localized("Your browser couldn't save today's checklist. Please check the browser's storage settings.");
+    }
+  });
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) loadDailyCare();
+});
+
+function renderFocusTimer() {
+  const minutes = Math.floor(focusRemaining / 60);
+  const seconds = focusRemaining % 60;
+  const time = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  focusClock.textContent = time;
+  focusClock.setAttribute("aria-label", localized("{{TIME}} remaining", { TIME: time }));
+  focusStartButton.textContent = localized(focusInterval ? "Pause timer" : "Start timer");
+}
+
+focusModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (focusInterval) {
+      window.clearInterval(focusInterval);
+      focusInterval = null;
+    }
+    focusMode = Number(button.dataset.minutes) === 5 ? "break" : "focus";
+    focusDuration = Number(button.dataset.minutes) * 60;
+    focusRemaining = focusDuration;
+    focusModeButtons.forEach((option) => option.setAttribute("aria-pressed", String(option === button)));
+    focusStatus.textContent = localized("Ready when you are. One small task is enough.");
+    renderFocusTimer();
+  });
+});
+
+focusStartButton.addEventListener("click", () => {
+  if (focusInterval) {
+    focusRemaining = Math.max(0, Math.ceil((focusDeadline - Date.now()) / 1000));
+    window.clearInterval(focusInterval);
+    focusInterval = null;
+    focusStatus.textContent = localized("Timer paused.");
+    renderFocusTimer();
+    return;
+  }
+  if (focusRemaining <= 0) focusRemaining = focusDuration;
+  focusDeadline = Date.now() + focusRemaining * 1000;
+  focusStatus.textContent = localized(focusMode === "focus"
+    ? "Focus session running. You can pause any time."
+    : "Break timer running. You can pause any time.");
+  focusInterval = window.setInterval(() => {
+    focusRemaining = Math.max(0, Math.ceil((focusDeadline - Date.now()) / 1000));
+    if (focusRemaining === 0) {
+      window.clearInterval(focusInterval);
+      focusInterval = null;
+      focusStatus.textContent = localized(focusMode === "focus"
+        ? "Focus block complete. Take a short break if that feels right."
+        : "Break complete. You can return to your day at your pace.");
+    }
+    renderFocusTimer();
+  }, 250);
+  renderFocusTimer();
+});
+
+focusResetButton.addEventListener("click", () => {
+  if (focusInterval) window.clearInterval(focusInterval);
+  focusInterval = null;
+  focusRemaining = focusDuration;
+  focusStatus.textContent = localized("Ready when you are. One small task is enough.");
+  renderFocusTimer();
+});
 
 moodButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -759,11 +949,13 @@ function collectTranslationRecords() {
 }
 
 const translationRecords = collectTranslationRecords();
+const translationSourceSignature = JSON.stringify(translationRecords.sources);
 
 function applyTranslations(translations, language) {
   currentTranslations = translations;
   selectedLanguage = language;
   document.documentElement.lang = language === "hinglish" ? "en-IN" : `${language}-IN`;
+  document.documentElement.dir = RIGHT_TO_LEFT_LANGUAGES.has(language) ? "rtl" : "ltr";
   document.title = localized("Mind Care — a student-made wellbeing space");
   const descriptionMeta = document.querySelector('meta[name="description"]');
   if (descriptionMeta) {
@@ -787,35 +979,171 @@ function applyTranslations(translations, language) {
   document.querySelector("#needs-response").textContent = localized("Pick an option to see a gentle suggestion.");
   renderMoodHistory();
   renderPlanner();
+  renderDailyCareStatus();
+  renderFocusTimer();
   renderContacts();
   renderFeedback();
 }
 
 function validateTranslationMap(translations) {
   return translations && typeof translations === "object" && !Array.isArray(translations)
-    && translationRecords.sources.every((source) => typeof translations[source] === "string" && translations[source].trim());
+    && translationRecords.sources.every((source) => typeof translations[source] === "string"
+      && translations[source].trim()
+      && sameTranslationPlaceholders(source, translations[source]));
+}
+
+function sameTranslationPlaceholders(source, translation) {
+  const placeholders = (text) => text.match(/\{\{[^{}]+\}\}/g) || [];
+  return JSON.stringify(placeholders(source)) === JSON.stringify(placeholders(translation));
+}
+
+function openTranslationCache() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(TRANSLATION_CACHE_DATABASE, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(TRANSLATION_CACHE_STORE)) {
+        request.result.createObjectStore(TRANSLATION_CACHE_STORE, { keyPath: "language" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Could not open translation storage."));
+    request.onblocked = () => reject(new Error("Translation storage is blocked by another page."));
+  });
+}
+
+async function readCachedTranslations(language) {
+  const database = await openTranslationCache();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(TRANSLATION_CACHE_STORE, "readonly");
+    const request = transaction.objectStore(TRANSLATION_CACHE_STORE).get(language);
+    request.onsuccess = () => {
+      const cached = request.result;
+      resolve(cached?.sourceSignature === translationSourceSignature
+        && validateTranslationMap(cached.translations) ? cached.translations : null);
+    };
+    request.onerror = () => reject(request.error || new Error("Could not read the saved translation."));
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error || new Error("Could not read the saved translation."));
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error || new Error("Could not read the saved translation."));
+    };
+  });
+}
+
+async function cacheTranslations(language, translations) {
+  const database = await openTranslationCache();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(TRANSLATION_CACHE_STORE, "readwrite");
+    transaction.objectStore(TRANSLATION_CACHE_STORE).put({
+      language,
+      sourceSignature: translationSourceSignature,
+      translations
+    });
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error || new Error("Could not save the translation for offline use."));
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error || new Error("Could not save the translation for offline use."));
+    };
+  });
 }
 
 async function requestTranslations(language) {
-  let response;
-  try {
-    response = await fetch(`/language-packs/${language}.json`);
-  } catch (error) {
-    console.error("[translation] The bundled language pack could not be fetched:", error.message);
-    throw new Error(localized("This language pack is missing from this app. Rebuild or update the app, then try again."));
-  }
-  if (!response.ok) {
-    throw new Error(localized("This language pack is missing from this app. Rebuild or update the app, then try again."));
+  if ("indexedDB" in window) {
+    try {
+      const cachedTranslations = await readCachedTranslations(language);
+      if (cachedTranslations) return cachedTranslations;
+    } catch (error) {
+      console.error("[translation] Offline translation storage could not be read:", error.message);
+    }
   }
 
-  let pack;
-  try {
-    pack = await response.json();
-  } catch {
-    throw new Error(localized("The installed language pack is unreadable. English remains available."));
+  let packResponse;
+  if (bundledLanguagePacks) {
+    try {
+      packResponse = await fetch(`/language-packs/${language}.json`, { signal: AbortSignal.timeout(5000) });
+    } catch (error) {
+      console.error("[translation] The bundled language pack could not be fetched; trying online translation:", error.message);
+    }
   }
-  if (pack.language === language && validateTranslationMap(pack.translations)) return pack.translations;
-  throw new Error(localized("The installed language pack is incomplete. English remains available."));
+  if (packResponse?.ok) {
+    let pack;
+    try {
+      pack = await packResponse.json();
+    } catch (error) {
+      console.error("[translation] The installed language pack is unreadable; trying online translation:", error.message);
+    }
+    if (pack?.language === language && validateTranslationMap(pack.translations)) {
+      if ("indexedDB" in window) {
+        try {
+          await cacheTranslations(language, pack.translations);
+        } catch (error) {
+          console.error("[translation] The language pack could not be saved for offline use:", error.message);
+        }
+      }
+      return pack.translations;
+    }
+    console.error("[translation] The installed language pack is incomplete; trying online translation.");
+  } else if (packResponse && packResponse.status !== 404) {
+    console.error(`[translation] Language pack request returned HTTP ${packResponse.status}; trying online translation.`);
+  }
+
+  const endpoint = chatApiBaseUrl
+    ? `${chatApiBaseUrl.replace(/\/+$/, "")}/api/translate`
+    : "/api/translate";
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language, texts: translationRecords.sources }),
+      signal: AbortSignal.timeout(35_000)
+    });
+  } catch (error) {
+    console.error("[translation] The online translation request could not be completed:", error.message);
+    throw new Error(localized("This language isn't saved offline yet. Connect to the internet and try again."));
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(localized("The translation service returned an unreadable reply. Please try again."));
+  }
+  if (!response.ok) {
+    throw new Error(typeof result.error === "string"
+      ? result.error
+      : localized("The translation service couldn't translate this page. Please try again."));
+  }
+  if (result.language !== language || !Array.isArray(result.translations)
+    || result.translations.length !== translationRecords.sources.length
+    || result.translations.some((text, index) => typeof text !== "string"
+      || !text.trim()
+      || !sameTranslationPlaceholders(translationRecords.sources[index], text))) {
+    throw new Error(localized("The translation service returned incomplete text. Please try again."));
+  }
+
+  const translations = Object.fromEntries(
+    translationRecords.sources.map((source, index) => [source, result.translations[index]])
+  );
+  if ("indexedDB" in window) {
+    try {
+      await cacheTranslations(language, translations);
+    } catch (error) {
+      console.error("[translation] The translation could not be saved for offline use:", error.message);
+    }
+  }
+  return translations;
 }
 
 async function setPageLanguage(language, previousLanguage) {
@@ -833,7 +1161,7 @@ async function setPageLanguage(language, previousLanguage) {
 
   languageSelect.disabled = true;
   languageSelect.setAttribute("aria-busy", "true");
-  document.querySelector("#language-status").textContent = localized("Loading the language pack…");
+  document.querySelector("#language-status").textContent = localized("Loading language…");
   try {
     const translations = await requestTranslations(language);
     applyTranslations(translations, language);
@@ -861,6 +1189,8 @@ languageSelect.addEventListener("change", () => {
 
 renderMoodHistory();
 renderPlanner();
+loadDailyCare();
+renderFocusTimer();
 renderContacts();
 renderFeedback();
 

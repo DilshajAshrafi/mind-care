@@ -3,31 +3,38 @@ const {
   checkTranslationRateLimit,
   handleTranslationRequest
 } = require("../../translation-core.cjs");
+const { nativeAppCorsHeaders } = require("../../chat-core.cjs");
 
 exports.handler = async (event, context) => {
+  const origin = event.headers?.origin;
+  const corsHeaders = nativeAppCorsHeaders(origin);
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: corsHeaders, body: "" };
+  }
+
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
-      headers: { Allow: "POST" },
+      headers: { Allow: "POST", ...corsHeaders },
       body: JSON.stringify({ error: "Use POST to translate the page." })
     };
   }
 
   const body = event.body || "";
   if (Buffer.byteLength(body, "utf8") > MAX_TRANSLATION_REQUEST_LENGTH) {
-    return { statusCode: 413, body: JSON.stringify({ error: "The page translation request is too large." }) };
+    return { statusCode: 413, headers: corsHeaders, body: JSON.stringify({ error: "The page translation request is too large." }) };
   }
 
   const clientIp = context.ip || event.headers?.["x-nf-client-connection-ip"] || "unknown";
   if (!checkTranslationRateLimit(clientIp)) {
-    return { statusCode: 429, body: JSON.stringify({ error: "Too many translation requests. Please wait a minute and try again." }) };
+    return { statusCode: 429, headers: corsHeaders, body: JSON.stringify({ error: "Too many translation requests. Please wait a minute and try again." }) };
   }
 
   let payload;
   try {
     payload = JSON.parse(body);
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: "Request body must be valid JSON." }) };
+    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: "Request body must be valid JSON." }) };
   }
 
   const result = await handleTranslationRequest(payload);
@@ -36,7 +43,8 @@ exports.handler = async (event, context) => {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff"
+      "X-Content-Type-Options": "nosniff",
+      ...corsHeaders
     },
     body: JSON.stringify(result.body)
   };

@@ -65,6 +65,24 @@ test("translation requests preserve item order and keep the API key in a header"
   ]));
 });
 
+test("translated output must preserve every source placeholder", async () => {
+  const result = await handleTranslationRequest({
+    language: "hi",
+    texts: ["For {{TASK}}, choose one step."]
+  }, {
+    apiKey: "test-key",
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: JSON.stringify({ translations: ["एक कदम चुनें।"] }) }] } }]
+      })
+    })
+  });
+
+  assert.equal(result.status, 502);
+  assert.match(result.body.error, /incomplete text/);
+});
+
 test("missing translation API configuration gives setup guidance without a network request", async () => {
   const result = await handleTranslationRequest({ language: "hi", texts: ["Hello"] }, {
     apiKey: "",
@@ -109,6 +127,31 @@ test("translation endpoint rejects invalid methods and payloads", async () => {
   }, vercelInvalid);
   assert.equal(vercelInvalid.statusCode, 400);
   assert.equal(vercelInvalid.headers["Cache-Control"], "no-store");
+});
+
+test("translation endpoints allow only configured native app origins", async () => {
+  const nativeOrigin = "capacitor://localhost";
+  const netlifyPreflight = await netlifyTranslateHandler({
+    httpMethod: "OPTIONS",
+    headers: { origin: nativeOrigin }
+  }, {});
+  assert.equal(netlifyPreflight.statusCode, 204);
+  assert.equal(netlifyPreflight.headers["Access-Control-Allow-Origin"], nativeOrigin);
+
+  const netlifyDenied = await netlifyTranslateHandler({
+    httpMethod: "OPTIONS",
+    headers: { origin: "https://example.com" }
+  }, {});
+  assert.equal(netlifyDenied.headers["Access-Control-Allow-Origin"], undefined);
+
+  const vercelPreflight = {
+    headers: {},
+    setHeader(name, value) { this.headers[name] = value; },
+    end(body) { this.body = body; }
+  };
+  await vercelTranslateHandler({ method: "OPTIONS", headers: { origin: nativeOrigin } }, vercelPreflight);
+  assert.equal(vercelPreflight.statusCode, 204);
+  assert.equal(vercelPreflight.headers["Access-Control-Allow-Origin"], nativeOrigin);
 });
 
 test("translation endpoints report missing API configuration explicitly", async () => {

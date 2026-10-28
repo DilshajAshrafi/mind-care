@@ -1,0 +1,6 @@
+android/
+node_modules/
+.env
+.env.*
+*.apk
+!downloads/mind-care.apk
