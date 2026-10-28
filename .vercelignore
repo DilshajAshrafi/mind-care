@@ -1,5 +1,7 @@
+.vercel/
 android/
 node_modules/
+test/
 .env
 .env.*
 *.apk
