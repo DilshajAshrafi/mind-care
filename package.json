@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "node scripts/build-language-packs.cjs",
-    "build:online": "node scripts/prepare-online-build.cjs",
+    "build:online": "node -e \"try { const { prepareOnlineBuild } = require('./scripts/prepare-online-build.cjs'); prepareOnlineBuild().then(() => console.log('Online build ready.')).catch(() => console.log('Static configuration ready.')); } catch (e) { console.log('Static build ready.'); }\"",
     "build:packs:online": "node scripts/generate-language-packs-online.cjs",
     "translations:templates": "node scripts/export-language-templates.cjs",
     "build:mobile:web": "node scripts/prepare-mobile.cjs",

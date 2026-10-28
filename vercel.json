@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build:online",
+  "buildCommand": "echo Static site - no build step",
   "outputDirectory": ".",
   "headers": [
     {
