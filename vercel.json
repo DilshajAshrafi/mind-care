@@ -1,5 +1,7 @@
 ﻿{
     "framework":  null,
+    "buildCommand":  "node scripts/build-vercel-public.cjs",
+    "outputDirectory":  "public",
     "headers":  [
                     {
                         "source":  "/downloads/mind-care.apk",
